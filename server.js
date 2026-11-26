@@ -3,7 +3,7 @@ import express from 'express';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { Client, middleware } from '@line/bot-sdk';
+import { Client } from '@line/bot-sdk';
 
 const app = express();
 const port = Number(process.env.PORT || 4173);
@@ -46,15 +46,20 @@ app.post('/line/webhook', express.raw({ type: 'application/json' }), async (req,
   }
 
   const body = JSON.parse(req.body.toString());
-  const ids = await readSubscribers();
+  let ids = await readSubscribers();
 
   for (const event of body.events || []) {
     if (event.type === 'follow' && event.source?.userId) {
       ids.push(event.source.userId);
     }
     if (event.type === 'unfollow' && event.source?.userId) {
-      const index = ids.indexOf(event.source.userId);
-      if (index >= 0) ids.splice(index, 1);
+      ids = ids.filter(id => id !== event.source.userId);
+    }
+    if (event.type === 'join' && event.source?.type === 'group' && event.source.groupId) {
+      ids.push('group:' + event.source.groupId);
+    }
+    if (event.type === 'leave' && event.source?.type === 'group' && event.source.groupId) {
+      ids = ids.filter(id => id !== 'group:' + event.source.groupId);
     }
   }
 
@@ -73,7 +78,7 @@ async function postParam(methodName, extra = {}) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
     body
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) throw new Error('HTTP ' + response.status);
   return response.json();
 }
 
@@ -116,22 +121,25 @@ let lastSignature = '';
 async function checkAndNotify() {
   if (!lineClient) return;
   try {
-    const data = await (await fetch(`http://127.0.0.1:${port}/api/status`)).json();
+    const data = await (await fetch('http://127.0.0.1:' + port + '/api/status')).json();
     const nearest = data.nearby?.[0];
     if (!nearest) {
       lastSignature = '';
       return;
     }
 
-    const signature = `${nearest.Car_Unicode}-${nearest.Log_DTime}`;
+    const signature = nearest.Car_Unicode + '-' + nearest.Log_DTime;
     if (signature === lastSignature) return;
     lastSignature = signature;
 
-    const ids = await readSubscribers();
-    for (const userId of ids) {
-      await lineClient.pushMessage(userId, {
+    const targets = await readSubscribers();
+    for (const target of targets) {
+      const targetId = typeof target === 'string' && target.startsWith('group:')
+        ? target.slice('group:'.length)
+        : target;
+      await lineClient.pushMessage(targetId, {
         type: 'text',
-        text: `垃圾車已接近指定地點\n地址：彰化縣芬園鄉進芬村大彰路四段578巷6號\n車輛：${nearest.Car_Number || nearest.Car_Style}\n距離：約 ${Math.round(nearest.distance)} 公尺\n回報：${nearest.Log_DTime}`
+        text: '垃圾車已接近指定地點\n地址：彰化縣芬園鄉進芬村大彰路四段578巷6號\n車輛：' + (nearest.Car_Number || nearest.Car_Style) + '\n距離：約 ' + Math.round(nearest.distance) + ' 公尺\n回報：' + nearest.Log_DTime
       });
     }
   } catch (error) {
@@ -140,7 +148,7 @@ async function checkAndNotify() {
 }
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`PWA running at http://localhost:${port}`);
-  console.log(`LINE webhook: http://localhost:${port}/line/webhook`);
+  console.log('PWA running at http://localhost:' + port);
+  console.log('LINE webhook: http://localhost:' + port + '/line/webhook');
   setInterval(checkAndNotify, 30000);
 });
