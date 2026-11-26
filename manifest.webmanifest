@@ -1,0 +1,19 @@
+{
+  "name": "進芬村垃圾車即時監測",
+  "short_name": "垃圾車監測",
+  "description": "專門監測彰化縣芬園鄉進芬村大彰路四段578巷6號附近的垃圾車與清運點",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f6f1",
+  "theme_color": "#16754a",
+  "lang": "zh-TW",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

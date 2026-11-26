@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#16754a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>芬園垃圾車監測</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">即時監測</p>
+        <h1>進芬村垃圾車</h1>
+      </div>
+      <button id="notificationButton" class="icon-button" type="button" aria-label="開啟通知" title="開啟通知">
+        <span aria-hidden="true">通知</span>
+      </button>
+    </header>
+
+    <section class="address-panel" aria-label="監測地點">
+      <p class="label">監測地址</p>
+      <p class="address">彰化縣芬園鄉進芬村大彰路四段578巷6號</p>
+      <div class="coordinate-row">
+        <span id="rangeLabel">300 公尺範圍</span>
+        <span id="lastUpdated">尚未更新</span>
+      </div>
+    </section>
+
+    <section class="status-card" id="statusCard" aria-live="polite">
+      <div class="status-mark" id="statusMark" aria-hidden="true"></div>
+      <div>
+        <p class="label">目前狀態</p>
+        <h2 id="statusTitle">正在取得資料</h2>
+        <p id="statusDetail">連線樂圾通即時資料中</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-heading">
+        <h2>附近車輛</h2>
+        <button id="refreshButton" class="text-button" type="button">重新整理</button>
+      </div>
+      <div id="vehicleList" class="vehicle-list">
+        <p class="empty">正在載入即時車輛資料</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-heading">
+        <h2>最近清運點</h2>
+      </div>
+      <div id="pointList" class="point-list">
+        <p class="empty">正在載入清運點</p>
+      </div>
+    </section>
+
+    <p class="disclaimer">資料來源：樂圾通公眾服務。僅供參考，實際抵達時間以現場及官方公告為準。</p>
+  </main>
+  <script src="app.js" defer></script>
+</body>
+</html>
