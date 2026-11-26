@@ -15,23 +15,14 @@ const GISX = 120.603795;
 const GISY = 24.008176;
 const RANGE = 300;
 
-const channelConfig = {
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-  channelSecret: process.env.LINE_CHANNEL_SECRET || ''
-};
+const channelConfig = { channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '', channelSecret: process.env.LINE_CHANNEL_SECRET || '' };
 const lineClient = channelConfig.channelAccessToken ? new Client(channelConfig) : null;
 
 async function readSubscribers() {
-  try {
-    return JSON.parse(await fs.readFile(subscribersFile, 'utf8'));
-  } catch {
-    return [];
-  }
+  try { return JSON.parse(await fs.readFile(subscribersFile, 'utf8')); }
+  catch { return []; }
 }
-
-async function writeSubscribers(ids) {
-  await fs.writeFile(subscribersFile, JSON.stringify([...new Set(ids)], null, 2));
-}
+async function writeSubscribers(ids) { await fs.writeFile(subscribersFile, JSON.stringify([...new Set(ids)], null, 2)); }
 
 function verifyLineSignature(rawBody, signature) {
   if (!channelConfig.channelSecret || !signature) return false;
@@ -40,29 +31,15 @@ function verifyLineSignature(rawBody, signature) {
 }
 
 app.post('/line/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  if (!verifyLineSignature(req.body, req.headers['x-line-signature'])) {
-    res.status(401).send('Invalid signature');
-    return;
-  }
-
+  if (!verifyLineSignature(req.body, req.headers['x-line-signature'])) { res.status(401).send('Invalid signature'); return; }
   const body = JSON.parse(req.body.toString());
   let ids = await readSubscribers();
-
   for (const event of body.events || []) {
-    if (event.type === 'follow' && event.source?.userId) {
-      ids.push(event.source.userId);
-    }
-    if (event.type === 'unfollow' && event.source?.userId) {
-      ids = ids.filter(id => id !== event.source.userId);
-    }
-    if (event.type === 'join' && event.source?.type === 'group' && event.source.groupId) {
-      ids.push('group:' + event.source.groupId);
-    }
-    if (event.type === 'leave' && event.source?.type === 'group' && event.source.groupId) {
-      ids = ids.filter(id => id !== 'group:' + event.source.groupId);
-    }
+    if (event.type === 'follow' && event.source?.userId) ids.push(event.source.userId);
+    if (event.type === 'unfollow' && event.source?.userId) ids = ids.filter(id => id !== event.source.userId);
+    if (event.type === 'join' && event.source?.type === 'group' && event.source.groupId) ids.push('group:' + event.source.groupId);
+    if (event.type === 'leave' && event.source?.type === 'group' && event.source.groupId) ids = ids.filter(id => id !== 'group:' + event.source.groupId);
   }
-
   await writeSubscribers(ids);
   res.status(200).json({ ok: true });
 });
@@ -73,11 +50,7 @@ app.use(express.static('.'));
 
 async function postParam(methodName, extra = {}) {
   const body = new URLSearchParams({ Param: JSON.stringify({ MethodName: methodName, ...extra }) });
-  const response = await fetch(API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-    body
-  });
+  const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body });
   if (!response.ok) throw new Error('HTTP ' + response.status);
   return response.json();
 }
@@ -97,54 +70,33 @@ app.get('/api/status', async (req, res) => {
       postParam('GetCarStatusGarbage', { Cust_ID: CUST_ID, Team_ID: TEAM_ID }),
       postParam('GetRecommandPoint', { Cust_ID: String(CUST_ID), Time: 0, RemovalType: 0, GISX, GISY, Range: RANGE })
     ]);
-
-    const cars = (Array.isArray(carsData.result) ? carsData.result : []).map(car => ({
-      ...car,
-      distance: haversineMeters(GISY, GISX, Number(car.Log_GISY), Number(car.Log_GISX))
-    })).filter(car => Number.isFinite(car.distance)).sort((a, b) => a.distance - b.distance);
-
-    res.json({
-      address: '彰化縣芬園鄉進芬村大彰路四段578巷6號',
-      range: RANGE,
-      updatedAt: new Date().toISOString(),
-      nearby: cars.filter(car => car.distance <= RANGE).slice(0, 8),
-      nearest: cars[0] || null,
-      points: Array.isArray(pointsData.result) ? pointsData.result.slice(0, 8) : []
-    });
-  } catch (error) {
-    res.status(502).json({ error: error.message });
-  }
+    const cars = (Array.isArray(carsData.result) ? carsData.result : []).map(car => ({ ...car, distance: haversineMeters(GISY, GISX, Number(car.Log_GISY), Number(car.Log_GISX)) })).filter(car => Number.isFinite(car.distance)).sort((a, b) => a.distance - b.distance);
+    res.json({ address: '彰化縣芬園鄉進芬村大彰路四段578巷6號', range: RANGE, updatedAt: new Date().toISOString(), nearby: cars.filter(car => car.distance <= RANGE).slice(0, 8), nearest: cars[0] || null, points: Array.isArray(pointsData.result) ? pointsData.result.slice(0, 8) : [] });
+  } catch (error) { res.status(502).json({ error: error.message }); }
 });
 
 let lastSignature = '';
 
+function isCollectionDay() {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Taipei', weekday: 'short' }).format(new Date());
+  return weekday === 'Tue' || weekday === 'Sat';
+}
+
 async function checkAndNotify() {
-  if (!lineClient) return;
+  if (!lineClient || !isCollectionDay()) return;
   try {
     const data = await (await fetch('http://127.0.0.1:' + port + '/api/status')).json();
     const nearest = data.nearby?.[0];
-    if (!nearest) {
-      lastSignature = '';
-      return;
-    }
-
+    if (!nearest) { lastSignature = ''; return; }
     const signature = nearest.Car_Unicode + '-' + nearest.Log_DTime;
     if (signature === lastSignature) return;
     lastSignature = signature;
-
     const targets = await readSubscribers();
     for (const target of targets) {
-      const targetId = typeof target === 'string' && target.startsWith('group:')
-        ? target.slice('group:'.length)
-        : target;
-      await lineClient.pushMessage(targetId, {
-        type: 'text',
-        text: '垃圾車已接近指定地點\n地址：彰化縣芬園鄉進芬村大彰路四段578巷6號\n車輛：' + (nearest.Car_Number || nearest.Car_Style) + '\n距離：約 ' + Math.round(nearest.distance) + ' 公尺\n回報：' + nearest.Log_DTime
-      });
+      const targetId = typeof target === 'string' && target.startsWith('group:') ? target.slice('group:'.length) : target;
+      await lineClient.pushMessage(targetId, { type: 'text', text: '垃圾車已接近指定地點\n地址：彰化縣芬園鄉進芬村大彰路四段578巷6號\n車輛：' + (nearest.Car_Number || nearest.Car_Style) + '\n距離：約 ' + Math.round(nearest.distance) + ' 公尺\n回報：' + nearest.Log_DTime });
     }
-  } catch (error) {
-    console.error('LINE notify check failed:', error.message);
-  }
+  } catch (error) { console.error('LINE notify check failed:', error.message); }
 }
 
 app.listen(port, '0.0.0.0', () => {
